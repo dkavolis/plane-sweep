@@ -10,9 +10,9 @@ imfmt = '.png';
 imtxt = '.txt';
 imdpt = '.depth';
 
-znear = 1;          % minimum depth
-zfar = 10;          % maximum depth
-nsteps = 300;       % number of planes used
+znear = 1.6;          % minimum depth
+zfar = 4;          % maximum depth
+nsteps = 340;       % number of planes used
 
 % reference image file strings
 reference = strcat(imloc, sprintf('%04d',Nreference), imtxt);
@@ -77,7 +77,7 @@ dpm = gather(bsxfun(@rdivide, dpm, Nimages-1));
 
 % plot calculated depth as gray image
 figure(1);
-ds = uint8(dpm .* (255 / zfar));
+ds = uint8((dpm - znear) .* (255 / (zfar - znear)));
 imagesc(ds,[0 255]); colormap(gray);
 
 %plot calculated depth as 3d surface

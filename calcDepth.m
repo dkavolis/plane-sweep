@@ -1,11 +1,10 @@
 function depthmap = calcDepth(depths, K, Rrel, trel, reference, sensor, Winsize, meanref, stdref)
-threshold = 0.0000001;             % std product threshold to determine homogenous regions
+threshold = 0.00000005;             % std product threshold to determine homogenous regions
 n = gpuArray([0 0 1]');
 
 depthmap = gpuArray(ones(size(reference)));
 depthmap = bsxfun(@times, depthmap, depths(1));
 bestncc = gpuArray(zeros(size(reference)));
-bestncc = bsxfun(@minus, bestncc, 1);
 
 % image x and y pixel coordinates
 X1 = gpuArray(repmat([1:640],480,1));
