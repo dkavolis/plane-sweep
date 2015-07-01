@@ -1,7 +1,7 @@
-% clear;
-Nimages = 10;       % total number of images to use in the algorithm
+clear;
+Nimages = 4;       % total number of images to use in the algorithm
 Nreference = 10;    % reference image number
-Winsize = 11;        % length of window used for NCC
+Winsize = 5;        % length of window used for NCC
 
 
 % image locations and formats
@@ -10,9 +10,9 @@ imfmt = '.png';
 imtxt = '.txt';
 imdpt = '.depth';
 
-znear = 10;          % minimum depth
-zfar =10000;          % maximum depth
-nsteps = 200;       % number of planes used
+znear = 1;          % minimum depth
+zfar = 10;          % maximum depth
+nsteps = 300;       % number of planes used
 
 % reference image file strings
 reference = strcat(imloc, sprintf('%04d',Nreference), imtxt);
@@ -28,7 +28,7 @@ ref = im2double(rgb2gray(IMref));
 
 % calculate mean and std for each window in reference image
 g = gpuArray(ones(Winsize,1) ./ Winsize);
-ref = gpuArray(ref);
+ref = gpuArray(ref) - 1;
 meanref = colfilter(colfilter(ref,g).',g).';
 sqrref = ref .* ref;
 meansqrref = colfilter(colfilter(sqrref,g).',g).';
@@ -45,17 +45,17 @@ sens = zeros(sizeref(1),sizeref(2),Nimages-1);
 depthmap = sens;
 
 % read sensor images
-parfor u = 1:Nimages-1
+for u = 1:Nimages-1
     sensor = strcat(imloc, sprintf('%04d',Nreference+u), imtxt);
     sensorim = strcat(imloc, sprintf('%04d',Nreference+u), imfmt);
     [Rsens(:,:,u), tsens(:,:,u)] = computeRT(sensor);
-    Rrel(:,:,u) = Rsens(:,:,u) \ Rref;
+    Rrel(:,:,u) = Rsens(:,:,u) / Rref;
     trel(:,:,u) = tsens(:,:,u) - Rrel(:,:,u)*tref;
     IMsens = imread(sensorim);
     sens(:,:,u)=im2double(rgb2gray(IMsens));
 end
 
-dstep = (zfar - znear) / nsteps;
+dstep = (zfar - znear) / (nsteps - 1);
 
 depths = znear:dstep:zfar;
 
@@ -84,6 +84,8 @@ imagesc(ds,[0 255]); colormap(gray);
 figure(2);
 h = surf(dpm);
 set(h, 'LineStyle', 'none');
+
+figure(1)
 
 % figure(1);
 % [x, y, z] = compute3Dpositions(reference, strcat(imloc, sprintf('%04d',Nreference), imdpt));
