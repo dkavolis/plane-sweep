@@ -1,11 +1,11 @@
-function depthmap = calcDepth(depths, K, Rrel, trel, nreference, nsensor, Winsize)
+function depthmap = calcDepth(depths, K, Rrel, trel, reference, sensor, Winsize, meanref, stdref)
 
 n = gpuArray([0 0 1]');
 
-depthmap = gpuArray(ones(size(nreference)));
+depthmap = gpuArray(ones(size(reference)));
 depthmap = bsxfun(@times, depthmap, depths(1));
-bestncc = gpuArray(zeros(size(nreference)));
-bestncc = bsxfun(@minus, bestncc, 3);
+bestncc = gpuArray(zeros(size(reference)));
+bestncc = bsxfun(@minus, bestncc, 1);
 
 % image x and y pixel coordinates
 X1 = gpuArray(repmat([1:640],480,1));
@@ -14,9 +14,9 @@ Y1 = gpuArray(repmat([1:480]',1,640));
 % summation kernel
 g = gpuArray(ones(Winsize,1) ./ Winsize);
 
-ns = gpuArray(nsensor);
-nr = gpuArray(nreference);
-   
+ns = gpuArray(sensor);
+nr = gpuArray(reference);
+
 for d = depths
     H = K * (Rrel + trel * n' ./ d) \ K; % homography
     
@@ -30,17 +30,24 @@ for d = depths
     % interpolate pixel values in transformed image
     warped = interp2(ns, x2, y2, 'linear', 0);
     
-    % normalize
-    warped = (warped - mean2(warped)) ./ std2(warped);
-    
-    % multiply reference and transformed images element-wise and sum
-    % elements over a specified window (2 1D convolutions)
-    ccr = bsxfun(@times, nr, warped);
-    ncc = colfilter(colfilter(ccr,g).',g).';
+    % calculate mean and std for each window in warped image
+    meanwarped = colfilter(colfilter(warped,g).',g).';
+    sqrwarped = warped .* warped;
+    meansqrwarped = colfilter(colfilter(sqrwarped,g).',g).';
+    stdwarped = sqrt(meansqrwarped - meanwarped .* meanwarped);
+
+    % calculate NCC for each window which is given by
+    % NCC = (mean of products - product of means) / product of standard deviations
+    I1I2 = warped .* nr;                                    % element-wise product
+    mean1mean2 = meanref .* meanwarped;                     % product of means in a window
+    sI1I2 = colfilter(colfilter(I1I2,g).',g).';             % mean of products in a window
+    ncc = (sI1I2 - mean1mean2) ./ (stdref .* stdwarped);    % NCC
     
     % find better NCC values and update depthmap and best NCC
     greater = bsxfun(@gt, ncc, bestncc);
     less = bsxfun(@minus, 1, greater);
     depthmap = bsxfun(@plus, bsxfun(@times, greater, d), bsxfun(@times, depthmap, less));
     bestncc = bsxfun(@plus, bsxfun(@times, greater, ncc), bsxfun(@times, less, bestncc));
+
+end
 end

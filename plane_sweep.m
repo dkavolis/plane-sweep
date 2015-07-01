@@ -1,7 +1,7 @@
 % clear;
 Nimages = 10;       % total number of images to use in the algorithm
 Nreference = 10;    % reference image number
-Winsize = 5;        % length of window used for NCC
+Winsize = 11;        % length of window used for NCC
 
 
 % image locations and formats
@@ -10,8 +10,8 @@ imfmt = '.png';
 imtxt = '.txt';
 imdpt = '.depth';
 
-znear = 1;          % minimum depth
-zfar =100;          % maximum depth
+znear = 10;          % minimum depth
+zfar =10000;          % maximum depth
 nsteps = 200;       % number of planes used
 
 % reference image file strings
@@ -22,12 +22,17 @@ referenceim = strcat(imloc, sprintf('%04d',Nreference), imfmt);
 K = getcamK(reference);
 [Rref, tref] = computeRT(reference);
 
-% read and normalize reference image
+% read reference image
 IMref = imread(referenceim);
 ref = im2double(rgb2gray(IMref));
-stdref = std2(ref);
-meanref = mean2(ref);
-nref = (ref - meanref) ./ stdref;
+
+% calculate mean and std for each window in reference image
+g = gpuArray(ones(Winsize,1) ./ Winsize);
+ref = gpuArray(ref);
+meanref = colfilter(colfilter(ref,g).',g).';
+sqrref = ref .* ref;
+meansqrref = colfilter(colfilter(sqrref,g).',g).';
+stdref = sqrt(meansqrref - meanref .* meanref);
 
 % preallocate memory for sensor images
 Rsens = zeros(3,3,Nimages-1);
@@ -35,12 +40,9 @@ tsens = zeros(3,1,Nimages-1);
 Rrel = zeros(3,3,Nimages-1);
 trel = zeros(3,1,Nimages-1);
 
-sizeref = size(nref);
+sizeref = size(ref);
 sens = zeros(sizeref(1),sizeref(2),Nimages-1);
-nsens = sens;
 depthmap = sens;
-stdsens = zeros(Nimages-1);
-meansens = zeros(Nimages-1);
 
 % read sensor images
 parfor u = 1:Nimages-1
@@ -51,9 +53,6 @@ parfor u = 1:Nimages-1
     trel(:,:,u) = tsens(:,:,u) - Rrel(:,:,u)*tref;
     IMsens = imread(sensorim);
     sens(:,:,u)=im2double(rgb2gray(IMsens));
-    stdsens(u) = std2(sens(:,:,u));
-    meansens(u) = mean2(sens(:,:,u));
-    nsens(:,:,u) = (sens(:,:,u) - meansens(u)) ./ stdsens(u); %normalized sensor image
 end
 
 dstep = (zfar - znear) / nsteps;
@@ -64,7 +63,7 @@ depthmap = gpuArray(depthmap);
 
 % calculate depthmaps for each sensor image
 parfor v = 1:Nimages-1
-    depthmap(:,:,v) = calcDepth(depths, K, Rrel(:,:,v), trel(:,:,v), nref, nsens(:,:,v), Winsize);
+    depthmap(:,:,v) = calcDepth(depths, K, Rrel(:,:,v), trel(:,:,v), ref, sens(:,:,v), Winsize, meanref, stdref);
 end
 
 % average depth results
