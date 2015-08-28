@@ -16,9 +16,13 @@ imdpt = '.depth';
 reference = strcat(imloc, sprintf('%04d',Nreference), imtxt);
 referenceim = strcat(imloc, sprintf('%04d',Nreference), imfmt);
 refdpt = strcat(imloc, sprintf('%04d',Nreference), imdpt);
+% reference = strcat(imloc, sprintf('%01d',Nreference), imtxt);
+% referenceim = strcat(imloc, sprintf('%01d',Nreference), imfmt);
+% refdpt = strcat(imloc, sprintf('%01d',Nreference), imdpt);
 
-znear = 0.1;          % minimum depth
-zfar = 5;          % maximum depth
+
+znear = 1.5;          % minimum depth
+zfar = 3.5;          % maximum depth
 nsteps = 250;       % number of planes used
 
 % reference image properties
@@ -145,26 +149,29 @@ dpm = gather(dpm);
 
 % plot calculated depth as gray image
 figure(1);
-imagesc(dpm); colormap(gray);
+imagesc(dpm, [znear, zfar]); colormap(jet); colorbar;
+
+denoised = denoiseTVL1(dpm, ref, 0.3, 100, zfar, znear);
+figure(2);
+imagesc(denoised, [znear, zfar]); colormap(jet); colorbar;
 
 %plot calculated depth as 3d surface
-figure(2);
+figure(3);
 h = surf(dpm);
 set(h, 'LineStyle', 'none');
-
-denoised = denoiseTVL1(dpm, 0.3, 100, zfar, znear);
-figure(3);
-imagesc(denoised); colormap(gray);
 
 figure(1)
 
 % figure(1);
 [x, y, z] = compute3Dpositions(reference, strcat(imloc, sprintf('%04d',Nreference), imdpt));
 sd = zeros(sizeref(1), sizeref(2));
-for y = 1:10:sizeref(1)
-    for x = 1:10:sizeref(2)
+for y = 1:3:sizeref(1)
+    for x = 1:3:sizeref(2)
         sd(y,x) = z(y,x);
     end
 end
+
+fprintf('Planesweep accuracy: mean error = %f, rmse = %f\n', mean2(dpm - z), sqrt(mean2((dpm-z).^2)));
+fprintf('Denoising accuracy: mean error = %f, rmse = %f\n', mean2(denoised- z), sqrt(mean2((denoised-z).^2)));
 % f = surf(x, y, z);
 % set(f, 'LineStyle', 'none');
