@@ -41,9 +41,32 @@ grad = gpuArray(grad);
 % backward differences divergence kernel
 div = [0 1 -1]';
 div = gpuArray(div);
+w0 = double(Ds > 0);
 
-w = double(Ds > 0);
-Ds = w .* Ds;
+l = 2;
+x = ones(2*l+1,1);
+y = (-l:l)';
+sigmah = 100;
+h = exp(- (y .* y) / 2 / sigmah / sigmah);
+[row, col, dm] = find(Ds);
+[sd1, sd2] = size(dm);
+if sd1 ~= 0
+    r = Ds(Ds(1,:)>0);
+    [s1, s2] = size(r);
+    dm = reshape(dm, sd1 / s2, s2);
+    row = reshape(row, sd1 / s2, s2);
+    col = reshape(col, sd1 / s2, s2);
+    x0 = gpuArray(repmat(1:640,480,1));
+    y0 = gpuArray(repmat((1:480)',1,640));
+%     Ds = conv2(conv2(Ds', x, 'same')', x, 'same');
+    Ds = interp2(col, row, dm, x0, y0, 'linear', 1);
+    w = conv2(conv2(w0', h, 'same')', h, 'same');
+    w(row(end,end)+1:end, :) = 0;
+    w(:, col(end,end)+1:end) = 0;
+else
+    w = w0;
+end
+% w = w0;
 
 % calculate anisotropic diffusion tensor
 dx = colfilter(img', grad)';
@@ -63,6 +86,7 @@ T2(isnan(T2)) = 0;
 T3 = T2;
 
 for i=1:iters
+    
     % update P
     dx = colfilter(ubar', grad)';
     dy = colfilter(ubar, grad);
@@ -103,6 +127,12 @@ for i=1:iters
     ubar = u + theta * (u - ubar);
     vxbar = vx + theta * (vx - vxbar);
     vybar = vy + theta * (vy - vybar);
+    
+    sigmah = 0.975 * sigmah;
+    h = exp(- (y .* y) / 2 / sigmah / sigmah);
+    w = conv2(conv2(w0', h, 'same')', h, 'same');
+    w(row(end,end)+1:end, :) = 0;
+    w(:, col(end,end)+1:end) = 0;
 end
 
 depth = gather(u * maxd);

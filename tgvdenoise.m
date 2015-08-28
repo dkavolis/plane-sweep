@@ -1,12 +1,20 @@
 iters = 1000;
-alpha0 = 1;
-alpha1 = 0.05;
-tau = 0.02;
-sigma = 80;
-beta = 35;
-gamma = 0.8;
+alpha0 = .5;
+alpha1 = 0.02;
+tau = 0.03;
+sigma = 30;
+beta = 20;
+gamma = .7;
 theta = 1;
 
 tgv = TGV(dpm, sd, ref, iters, alpha0, alpha1, tau, sigma, beta, gamma, theta);
-imagesc(tgv);
-colormap(gray);
+figure(5);
+imagesc(tgv, [znear, zfar]);
+colormap(jet);
+colorbar;
+figure(6);
+diff = tgv - z;
+histogram(diff(abs(diff)<0.5));
+rmse = sqrt(mean2(diff.^2));
+mean = mean2(diff);
+fprintf('TGV accuracy: mean error = %f, rmse = %f\n', mean, rmse);
